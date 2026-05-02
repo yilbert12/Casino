@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>El Granjero 👨‍🌾</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&family=Russo+One&display=swap');
+  body { margin: 0; background: #030810; }
+  .font-russo { font-family: 'Russo One', sans-serif; }
+  .animate-bounce-slow { animation: bounce 2s infinite; }
+  @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.4); } 50% { box-shadow: 0 0 30px rgba(34, 197, 94, 0.7); } }
+  .pulse-glow { animation: pulse-glow 2s infinite; }
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+
+const LOTTO_DATA = Object.freeze([
+  { n: "00", a: "Ballena", e: "🐳" },{ n: "0", a: "Delfín", e: "🐬" },{ n: "1", a: "Carnero", e: "🐏" },{ n: "2", a: "Toro", e: "🐃" },{ n: "3", a: "Ciempiés", e: "🐛" },{ n: "4", a: "Alacrán", e: "🦂" },{ n: "5", a: "León", e: "🦁" },{ n: "6", a: "Rana", e: "🐸" },{ n: "7", a: "Perico", e: "🦜" },{ n: "8", a: "Ratón", e: "🐭" },{ n: "9", a: "Águila", e: "🦅" },{ n: "10", a: "Tigre", e: "🐅" },{ n: "11", a: "Gato", e: "🐱" },{ n: "12", a: "Caballo", e: "🐎" },{ n: "13", a: "Mono", e: "🐵" },{ n: "14", a: "Paloma", e: "🕊️" },{ n: "15", a: "Zorro", e: "🦊" },{ n: "16", a: "Oso", e: "🐻" },{ n: "17", a: "Pavo", e: "🦃" },{ n: "18", a: "Burro", e: "🫏" },{ n: "19", a: "Chivo", e: "🐐" },{ n: "20", a: "Cochino", e: "🐖" },{ n: "21", a: "Gallo", e: "🐓" },{ n: "22", a: "Camello", e: "🐫" },{ n: "23", a: "Cebra", e: "🦓" },{ n: "24", a: "Iguana", e: "🦎" },{ n: "25", a: "Gallina", e: "🐔" },{ n: "26", a: "Vaca", e: "🐄" },{ n: "27", a: "Perro", e: "🐕" },{ n: "28", a: "Zamuro", e: "🦅" },{ n: "29", a: "Elefante", e: "🐘" },{ n: "30", a: "Caimán", e: "🐊" },{ n: "31", a: "Lapa", e: "🐹" },{ n: "32", a: "Ardilla", e: "🐿️" },{ n: "33", a: "Pescado", e: "🐠" },{ n: "34", a: "Venado", e: "🦌" },{ n: "35", a: "Jirafa", e: "🦒" },{ n: "36", a: "Culebra", e: "🐍" },
+]);
+
+const GAME = Object.freeze({min:0.5,max:35,inc:0.5,mult:33,roundSec:60,closeSec:10});
+const safeNum=v=>Number.isFinite(+v)?+v:0;
+const clamp=v=>Math.max(GAME.min,Math.min(GAME.max,Math.round((safeNum(v)||GAME.min)/GAME.inc)*GAME.inc));
+const money=v=>`$${safeNum(v).toFixed(2)}`;
+const sanitize = v => String(v).replace(/[^0-9.]/g,'').replace(/(\..*)\./g,'$1').slice(0,6);
+
+const App=()=>{
+  const [bets,setBets]=useState(()=>{try{return JSON.parse(localStorage.getItem('granjero_bets')||'{}')}catch{return {}}});
+  const [pick,setPick]=useState(null);
+  const [amount,setAmount]=useState('0.50');
+  const [winner,setWinner]=useState(null);
+  const [left,setLeft]=useState('00:59');
+  const [locked,setLocked]=useState(false);
+  const [msg,setMsg]=useState('');
+
+  useEffect(()=>{localStorage.setItem('granjero_bets',JSON.stringify(bets));},[bets]);
+
+  useEffect(()=>{
+    const id=setInterval(()=>{
+      const s=new Date().getSeconds();
+      const remain=(GAME.roundSec-1)-s;
+      setLeft(`00:${String(Math.max(0,remain)).padStart(2,'0')}`);
+      setLocked(remain<GAME.closeSec);
+      if(remain===0){
+        const idx=crypto.getRandomValues(new Uint32Array(1))[0]%LOTTO_DATA.length;
+        setWinner({...LOTTO_DATA[idx],idx,ts:new Date().toISOString()});
+      }
+    },250);
+    return ()=>clearInterval(id);
+  },[]);
+
+  const total=useMemo(()=>Object.values(bets).reduce((a,b)=>a+safeNum(b),0),[bets]);
+  const picks=Object.keys(bets).filter(k=>safeNum(bets[k])>0);
+
+  const apply=()=>{
+    if(pick===null) return;
+    const v=safeNum(amount);
+    setBets(prev=>{const n={...prev}; if(v<=0) delete n[pick]; else n[pick]=clamp(v); return n;});
+    setPick(null);
+  };
+
+  return <div className="min-h-screen bg-[#030810] text-white">
+    <header className="sticky top-0 z-50 flex items-center justify-between p-4 bg-[#0a1628]/95 border-b-2 border-blue-400/30">
+      <h1 className="font-russo text-2xl text-[#38bdf8]">EL GRANJERO 👨‍🌾</h1>
+      <div className={`px-3 py-1 rounded-lg border ${locked?'bg-red-500/20 border-red-400/40':'bg-blue-500/10 border-blue-400/40'}`}>{left}</div>
+    </header>
+    {msg&&<div className="fixed top-16 left-1/2 -translate-x-1/2 bg-red-600/90 px-4 py-2 rounded-xl" onClick={()=>setMsg('')}>{msg}</div>}
+    <main className="p-4 max-w-4xl mx-auto">
+      <div className="grid grid-cols-7 sm:grid-cols-8 md:grid-cols-10 gap-2">
+        {LOTTO_DATA.map((it,i)=><button key={i} disabled={locked} onClick={()=>{setPick(i);setAmount(String(bets[i]??GAME.min.toFixed(2)));}} className={`relative p-2 rounded-xl border-2 ${bets[i]?'bg-blue-600 border-white':'bg-white/5 border-white/10'} disabled:opacity-50`}>
+          <div className="text-xl">{it.e}</div><div className="text-[9px]">{it.n}</div>
+          {bets[i]?<div className="absolute -top-2 -right-2 text-[8px] bg-green-500 px-1 rounded-full">{money(bets[i])}</div>:null}
+        </button>)}
+      </div>
+      <div className="mt-6 bg-gradient-to-b from-[#1a2b48] to-[#0a1628] border-2 border-blue-400/30 rounded-[32px] p-6">
+        <div className="grid grid-cols-3 gap-3 mb-4 text-center">
+          <div><div className="text-slate-400 text-xs">Animales</div><div className="text-blue-400 text-2xl font-black">{picks.length}</div></div>
+          <div><div className="text-slate-400 text-xs">Total</div><div className="text-2xl font-black">{money(total)}</div></div>
+          <div className="pulse-glow rounded-2xl p-2"><div className="text-green-300 text-xs">Pago</div><div className="text-green-400 font-black">x{GAME.mult}</div></div>
+        </div>
+      </div>
+    </main>
+
+    {pick!==null&&<div className="fixed inset-0 bg-black/90 flex items-center justify-center p-6">
+      <div className="bg-[#0a1628] border-[4px] border-blue-500 rounded-[30px] p-6 text-center max-w-xs w-full">
+        <div className="text-5xl mb-2">{LOTTO_DATA[pick].e}</div>
+        <input value={amount} onChange={e=>setAmount(sanitize(e.target.value))} className="w-32 bg-black/50 border-2 border-blue-500/50 rounded-xl py-2 px-2 text-center text-xl font-bold"/>
+        <div className="mt-1 text-xs text-slate-400">min {money(GAME.min)} · max {money(GAME.max)}</div>
+        <div className="flex gap-2 mt-4">
+          <button className="flex-1 py-2 bg-slate-700 rounded-xl" onClick={()=>setPick(null)}>Cancelar</button>
+          <button className="flex-1 py-2 bg-green-600 rounded-xl" onClick={apply}>Aplicar</button>
+        </div>
+      </div>
+    </div>}
+
+    {winner&&<div className="fixed inset-0 bg-black/90 flex items-center justify-center p-6">
+      <div className="bg-[#0a1628] border-[6px] border-blue-500 rounded-[50px] p-10 text-center max-w-sm w-full">
+        <div className="text-8xl mb-3 animate-bounce-slow">{winner.e}</div><div className="font-russo text-2xl text-blue-400">RESULTADO</div>
+        <div className="text-xl font-bold">{winner.a} #{winner.n}</div>
+        <div className="text-[10px] text-slate-500 break-all mt-2">{winner.ts}</div>
+        <button className="w-full mt-4 py-3 bg-white text-blue-900 rounded-2xl font-black" onClick={()=>setWinner(null)}>NUEVA RONDA</button>
+      </div>
+    </div>}
+  </div>
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
